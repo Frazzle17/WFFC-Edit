@@ -84,6 +84,8 @@ void Game::Initialize(HWND window, int width, int height)
     m_deviceResources->CreateWindowSizeDependentResources();
     CreateWindowSizeDependentResources();
 
+	GetClientRect(window, &m_ScreenDimensions);
+
 #ifdef DXTK_AUDIO
     // Create DirectXTK for Audio objects
     AUDIO_ENGINE_FLAGS eflags = AudioEngine_Default;
@@ -610,4 +612,102 @@ std::wstring StringToWCHART(std::string s)
 	std::wstring r(buf);
 	delete[] buf;
 	return r;
+}
+
+//week 6
+std::vector<int> Game::MousePicking(std::vector<int> currentSelection, bool multiSelect)
+{
+	std::vector<int> selectedIDs = currentSelection;
+	if (!selectedIDs.empty())
+	{
+		if (multiSelect == false)
+		{
+			selectedIDs.clear();
+		}
+	}
+	float pickedDistance = 0;
+
+	int currentlyClicked = -1;
+	float currentDistance = -1;
+
+	//setup near and far planes of frustrum with mouse X and mouse Y passed down from Toolmain
+	//they may look the same but note, the difference in Z
+	const XMVECTOR nearSource = XMVectorSet(m_InputCommands.mouse_X, m_InputCommands.mouse_Y, 0.0f, 1.0f);
+	const XMVECTOR farSource = XMVectorSet(m_InputCommands.mouse_X, m_InputCommands.mouse_Y, 1.0f, 1.0f);
+
+	//Loop through entire display list of objects and pick with each in turn
+	for (int i = 0; i < m_displayList.size(); i++)
+	{
+		//Get the scale factor and translation of this object
+		const XMVECTORF32 scale = { m_displayList[i].m_scale.x, m_displayList[i].m_scale.y, m_displayList[i].m_scale.z };
+		const XMVECTORF32 translate = { m_displayList[i].m_position.x, m_displayList[i].m_position.y, m_displayList[i].m_position.z };
+
+		//convert euler angles into quaternion for the rotation of the object
+		XMVECTOR rotate = Quaternion::CreateFromYawPitchRoll(m_displayList[i].m_orientation.y * 3.1415 / 180, m_displayList[i].m_orientation.x * 3.1415 / 180, m_displayList[i].m_orientation.z * 3.1415 / 180);
+
+		//create and set the matrix of the selected object in the world based on the translation, scale and rotation
+		XMMATRIX local = m_world * XMMatrixTransformation(g_XMZero, Quaternion::Identity, scale, g_XMZero, rotate, translate);
+
+		//Unproject the points of the near and far plane, with respect to the matrix we just created
+		XMVECTOR nearPoint = XMVector3Unproject(nearSource, 0.0f, 0.0f, m_ScreenDimensions.right, m_ScreenDimensions.bottom, m_deviceResources->GetScreenViewport().MinDepth, m_deviceResources->GetScreenViewport().MaxDepth, m_projection, m_view, local);
+		XMVECTOR farPoint = XMVector3Unproject(farSource, 0.0f, 0.0f, m_ScreenDimensions.right, m_ScreenDimensions.bottom, m_deviceResources->GetScreenViewport().MinDepth, m_deviceResources->GetScreenViewport().MaxDepth, m_projection, m_view, local);
+
+		//turn the transformed points into our picking vector
+		XMVECTOR pickingVector = farPoint - nearPoint;
+		pickingVector = XMVector3Normalize(pickingVector);
+
+		//loop through mesh list for object
+		for (int y = 0; y < m_displayList[i].m_model.get()->meshes.size(); y++)
+		{
+			if (m_displayList[i].m_model.get()->meshes[y]->boundingBox.Intersects(nearPoint, pickingVector, pickedDistance))
+			{
+				//check if any objects have been registered
+				if (currentDistance == -1)
+				{
+					currentlyClicked = i;
+					currentDistance = pickedDistance;
+					break;
+				}
+
+				//check if registered object is closer to screen
+				if (pickedDistance < currentDistance)
+				{
+					currentlyClicked = i;
+					currentDistance = pickedDistance;
+					break;
+				}
+			}
+		}
+	}
+
+	if (currentlyClicked > -1)
+	{
+		if (multiSelect == true)
+		{
+			int IDindex = -1;
+
+			for (int i = 0; i < selectedIDs.size(); i++)
+			{
+				if (selectedIDs[i] == currentlyClicked)
+				{
+					IDindex = i;
+					break;
+				}
+			}
+
+			if (IDindex > -1)
+			{
+				selectedIDs.erase(selectedIDs.begin() + IDindex);
+			}
+			else
+			{
+				selectedIDs.push_back(currentlyClicked);
+			}
+		}
+		else
+		{
+			selectedIDs.push_back(currentlyClicked);
+		}
+	}
+	return selectedIDs;
 }

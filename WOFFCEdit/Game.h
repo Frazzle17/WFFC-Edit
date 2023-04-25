@@ -51,6 +51,9 @@ public:
 	void SaveDisplayChunk(ChunkObject *SceneChunk);	//saves geometry et al
 	void ClearDisplayList();
 
+	//week 6
+	std::vector<int> MousePicking(std::vector<int> currentSelection, bool multiSelect);
+
 #ifdef DXTK_AUDIO
 	void NewAudioDevice();
 #endif
@@ -71,6 +74,7 @@ private:
 
 	//functionality
 	float								m_movespeed;
+	RECT								m_ScreenDimensions;
 
 	//camera
 	DirectX::SimpleMath::Vector3		m_camPosition;

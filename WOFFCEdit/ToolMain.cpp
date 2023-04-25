@@ -9,7 +9,7 @@ ToolMain::ToolMain()
 {
 
 	m_currentChunk = 0;		//default value
-	m_selectedObject = 0;	//initial selection ID
+	//m_selectedObjects;	//initial selection ID
 	m_sceneGraph.clear();	//clear the vector for the scenegraph
 	m_databaseConnection = NULL;
 
@@ -18,7 +18,14 @@ ToolMain::ToolMain()
 	m_toolInputCommands.back		= false;
 	m_toolInputCommands.left		= false;
 	m_toolInputCommands.right		= false;
-	
+	m_toolInputCommands.mouseLDown = false;
+	m_toolInputCommands.mouseRDown = false;
+	m_toolInputCommands.mouseDrag = false;
+	m_toolInputCommands.rotLeft = false;
+	m_toolInputCommands.rotRight = false;
+	m_toolInputCommands.mouse_X = 0;
+	m_toolInputCommands.mouse_Y = 0;
+	m_toolInputCommands.ctrlDown = false;
 }
 
 
@@ -28,10 +35,9 @@ ToolMain::~ToolMain()
 }
 
 
-int ToolMain::getCurrentSelectionID()
+std::vector<int> ToolMain::getCurrentSelectionIDs()
 {
-
-	return m_selectedObject;
+	return m_selectedObjects;
 }
 
 void ToolMain::onActionInitialise(HWND handle, int width, int height)
@@ -287,6 +293,12 @@ void ToolMain::Tick(MSG *msg)
 		//add to scenegraph
 		//resend scenegraph to Direct X renderer
 
+	if (m_toolInputCommands.mouseLDown)
+	{
+		m_selectedObjects = m_d3dRenderer.MousePicking(m_selectedObjects, m_toolInputCommands.ctrlDown);
+		m_toolInputCommands.mouseLDown = false;
+	}
+
 	//Renderer Update Call
 	m_d3dRenderer.Tick(&m_toolInputCommands);
 }
@@ -306,10 +318,25 @@ void ToolMain::UpdateInput(MSG * msg)
 		break;
 
 	case WM_MOUSEMOVE:
+		//if mouseDown is true update mouse drag to true
+		if (m_toolInputCommands.mouseLDown == true)
+		{
+			m_toolInputCommands.mouseDrag = true;
+		}
+
+		//update the mouse X and Y which
+		m_toolInputCommands.mouse_X = GET_X_LPARAM(msg->lParam);
+		m_toolInputCommands.mouse_Y = GET_Y_LPARAM(msg->lParam);
 		break;
 
 	case WM_LBUTTONDOWN:	//mouse button down,  you will probably need to check when its up too
 		//set some flag for the mouse button in inputcommands
+		m_toolInputCommands.mouseLDown = true;
+		break;
+
+	case WM_LBUTTONUP:
+		m_toolInputCommands.mouseLDown = false;
+		m_toolInputCommands.mouseDrag = false;
 		break;
 
 	}
@@ -349,5 +376,10 @@ void ToolMain::UpdateInput(MSG * msg)
 	}
 	else m_toolInputCommands.rotLeft = false;
 
-	//WASD
+	//CTRL
+	if (m_keyArray[VK_CONTROL])
+	{
+		m_toolInputCommands.ctrlDown = true;
+	}
+	else m_toolInputCommands.ctrlDown = false;
 }
